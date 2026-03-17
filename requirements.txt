@@ -1,0 +1,22 @@
+# Data
+pandas>=2.0.0
+openpyxl>=3.1.0
+numpy>=1.24.0
+
+# Classical ML (binary risk + regression)
+scikit-learn>=1.3.0
+xgboost>=2.0.0
+
+# Time-series / "AI" models (optional)
+torch>=2.0.0
+
+# Viz & eval
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Web
+flask>=3.0.0
+
+# Dev / lint (optional)
+# black>=23.0.0
+# pytest>=7.0.0

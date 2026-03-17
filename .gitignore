@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+*.xlsx
+!Political Violence Events by Country Mar 2026.xlsx
+.env
+*.egg-info/
+dist/
+build/

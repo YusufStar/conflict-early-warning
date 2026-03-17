@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conflict Early Warning</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --danger: #f85149;
+      --warning: #d29922;
+      --success: #3fb950;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+    header {
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin: 0 0 0.25rem 0;
+      letter-spacing: -0.02em;
+    }
+    .tagline {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin: 0;
+    }
+    .controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+    .filter {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .filter input { accent-color: var(--accent); }
+    .filter label { cursor: pointer; color: var(--muted); }
+    .sort {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .sort select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .search {
+      flex: 1;
+      min-width: 180px;
+    }
+    .search input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+    .search input::placeholder { color: var(--muted); }
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.65rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      font-weight: 600;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .country { font-weight: 500; }
+    .risk {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.85rem;
+    }
+    .risk.high { color: var(--danger); }
+    .risk.mid { color: var(--warning); }
+    .risk.low { color: var(--muted); }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge.high { background: rgba(248,81,73,0.2); color: var(--danger); }
+    .badge.low { background: rgba(63,185,80,0.2); color: var(--success); }
+    .loading, .error {
+      padding: 2rem;
+      text-align: center;
+      color: var(--muted);
+    }
+    .error { color: var(--danger); }
+    .count { color: var(--muted); font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Conflict Early Warning</h1>
+      <p class="tagline">AI that predicts where conflict will escalate next</p>
+    </header>
+    <div class="controls">
+      <div class="search">
+        <input type="text" id="search" placeholder="Search country…" aria-label="Search country">
+      </div>
+      <div class="filter">
+        <input type="checkbox" id="highOnly" aria-label="High risk only">
+        <label for="highOnly">High risk only</label>
+      </div>
+      <div class="sort">
+        <label for="sort">Sort by</label>
+        <select id="sort" aria-label="Sort">
+          <option value="risk_desc">Risk (high first)</option>
+          <option value="risk_asc">Risk (low first)</option>
+          <option value="name">Name A–Z</option>
+        </select>
+      </div>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="table-wrap">
+      <div class="loading" id="loading">Loading predictions…</div>
+      <div class="error" id="error" style="display:none"></div>
+      <table id="table" style="display:none">
+        <thead>
+          <tr>
+            <th>Country</th>
+            <th>Risk score</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <table id="tableReg" style="display:none">
+        <thead>
+          <tr>
+            <th>Country</th>
+            <th>Predicted events</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyReg"></tbody>
+      </table>
+    </div>
+  </div>
+  <script>
+    let data = { target_type: "binary", predictions: [] };
+
+    function riskClass(score) {
+      if (score >= 0.6) return "high";
+      if (score >= 0.3) return "mid";
+      return "low";
+    }
+
+    function filterSort() {
+      const search = document.getElementById("search").value.trim().toLowerCase();
+      const highOnly = document.getElementById("highOnly").checked;
+      const sort = document.getElementById("sort").value;
+      let list = data.predictions.filter(p => {
+        const matchSearch = !search || p.country.toLowerCase().includes(search);
+        const matchHigh = !highOnly || (p.high_risk !== undefined && p.high_risk === 1);
+        return matchSearch && matchHigh;
+      });
+      if (data.target_type === "binary") {
+        if (sort === "risk_desc") list.sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0));
+        else if (sort === "risk_asc") list.sort((a, b) => (a.risk_score || 0) - (b.risk_score || 0));
+        else list.sort((a, b) => a.country.localeCompare(b.country));
+      } else {
+        if (sort === "risk_desc") list.sort((a, b) => (b.predicted_events || 0) - (a.predicted_events || 0));
+        else if (sort === "risk_asc") list.sort((a, b) => (a.predicted_events || 0) - (b.predicted_events || 0));
+        else list.sort((a, b) => a.country.localeCompare(b.country));
+      }
+      return list;
+    }
+
+    function render(list) {
+      const tbody = document.getElementById("tbody");
+      const tbodyReg = document.getElementById("tbodyReg");
+      const table = document.getElementById("table");
+      const tableReg = document.getElementById("tableReg");
+      if (data.target_type === "binary") {
+        table.style.display = "table";
+        tableReg.style.display = "none";
+        tbody.innerHTML = list.map(p => {
+          const score = (p.risk_score != null ? (p.risk_score * 100).toFixed(1) : "—") + "%";
+          const cls = riskClass(p.risk_score || 0);
+          const badge = p.high_risk ? '<span class="badge high">High risk</span>' : '<span class="badge low">Low risk</span>';
+          return `<tr><td class="country">${escapeHtml(p.country)}</td><td class="risk ${cls}">${score}</td><td>${badge}</td></tr>`;
+        }).join("");
+      } else {
+        table.style.display = "none";
+        tableReg.style.display = "table";
+        tbodyReg.innerHTML = list.map(p => {
+          const ev = p.predicted_events != null ? Number(p.predicted_events).toFixed(1) : "—";
+          return `<tr><td class="country">${escapeHtml(p.country)}</td><td class="risk">${ev}</td></tr>`;
+        }).join("");
+      }
+      document.getElementById("count").textContent = `${list.length} of ${data.predictions.length} countries`;
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement("div");
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function updateSortOptions() {
+      const sel = document.getElementById("sort");
+      if (data.target_type !== "binary") {
+        sel.innerHTML = '<option value="risk_desc">Events (high first)</option><option value="risk_asc">Events (low first)</option><option value="name">Name A–Z</option>';
+      }
+    }
+
+    document.getElementById("search").addEventListener("input", () => render(filterSort()));
+    document.getElementById("highOnly").addEventListener("change", () => render(filterSort()));
+    document.getElementById("sort").addEventListener("change", () => render(filterSort()));
+
+    fetch("/api/predictions")
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
+      .then(res => {
+        data = res;
+        document.getElementById("loading").style.display = "none";
+        document.querySelector(".filter").style.display = res.target_type === "binary" ? "flex" : "none";
+        updateSortOptions();
+        render(filterSort());
+      })
+      .catch(err => {
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("error").style.display = "block";
+        document.getElementById("error").textContent = "Failed to load: " + err.message;
+      });
+  </script>
+</body>
+</html>
