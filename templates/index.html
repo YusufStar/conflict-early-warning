@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
       --bg: #0d1117;
@@ -30,7 +31,7 @@
       line-height: 1.5;
     }
     .wrap {
-      max-width: 960px;
+      max-width: 1280px;
       margin: 0 auto;
       padding: 2rem 1.5rem;
     }
@@ -141,6 +142,28 @@
     }
     .error { color: var(--danger); }
     .count { color: var(--muted); font-size: 0.9rem; }
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+    }
+    .card .value { font-size: 1.5rem; font-weight: 700; font-family: "JetBrains Mono", monospace; }
+    .card .label { color: var(--muted); font-size: 0.85rem; margin-top: 0.25rem; }
+    .card.danger .value { color: var(--danger); }
+    .card.accent .value { color: var(--accent); }
+    .section-title { font-size: 1rem; font-weight: 600; margin: 2rem 0 1rem 0; color: var(--text); }
+    .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+    @media (max-width: 700px) { .charts { grid-template-columns: 1fr; } }
+    .chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; height: 280px; }
+    .chart-wrap.wide { height: 320px; }
+    .bands { display: flex; gap: 0.5rem; margin-bottom: 2rem; flex-wrap: wrap; }
+    .band { flex: 1; min-width: 80px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.75rem; text-align: center; }
+    .band .val { font-weight: 700; font-family: "JetBrains Mono", monospace; font-size: 1.1rem; }
+    .band .range { color: var(--muted); font-size: 0.75rem; }
+    .forecast-note { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+    .forecast-note strong { color: var(--text); }
   </style>
 </head>
 <body>
@@ -149,6 +172,21 @@
       <h1>Conflict Early Warning</h1>
       <p class="tagline">AI that predicts where conflict will escalate next</p>
     </header>
+    <div class="forecast-note" id="forecastNote" style="display:none">
+      <strong>Forecast.</strong> Risk scores below are for the <strong>next calendar month</strong> based on the latest event data. The model uses historical event counts, trends, and seasonality. High-risk countries are those above the 75th percentile of escalation probability.
+    </div>
+    <div class="summary" id="summary" style="display:none">
+      <div class="card"><span class="value" id="totalCountries">—</span><div class="label">Countries</div></div>
+      <div class="card danger"><span class="value" id="highRiskCount">—</span><div class="label">High risk</div></div>
+      <div class="card accent"><span class="value" id="avgRisk">—</span><div class="label">Avg risk score</div></div>
+    </div>
+    <div class="bands" id="bands" style="display:none"></div>
+    <div class="section-title" id="chartsTitle" style="display:none">Risk overview</div>
+    <div class="charts" id="chartsWrap" style="display:none">
+      <div class="chart-wrap"><canvas id="chartDist"></canvas></div>
+      <div class="chart-wrap wide"><canvas id="chartTop"></canvas></div>
+    </div>
+    <div class="section-title">All countries</div>
     <div class="controls">
       <div class="search">
         <input type="text" id="search" placeholder="Search country…" aria-label="Search country">
@@ -193,6 +231,7 @@
   </div>
   <script>
     let data = { target_type: "binary", predictions: [] };
+    let chartDist = null, chartTop = null;
 
     function riskClass(score) {
       if (score >= 0.6) return "high";
@@ -259,6 +298,90 @@
       }
     }
 
+    function updateSummaryAndCharts() {
+      const preds = data.predictions;
+      const isBinary = data.target_type === "binary";
+      document.getElementById("forecastNote").style.display = isBinary ? "block" : "none";
+      document.getElementById("summary").style.display = isBinary ? "grid" : "none";
+      document.getElementById("bands").style.display = isBinary ? "flex" : "none";
+      document.getElementById("chartsTitle").style.display = isBinary ? "block" : "none";
+      document.getElementById("chartsWrap").style.display = isBinary ? "grid" : "none";
+
+      if (!isBinary || !preds.length) return;
+
+      const highRisk = preds.filter(p => p.high_risk === 1).length;
+      const avg = preds.reduce((s, p) => s + (p.risk_score || 0), 0) / preds.length;
+      document.getElementById("totalCountries").textContent = preds.length;
+      document.getElementById("highRiskCount").textContent = highRisk;
+      document.getElementById("avgRisk").textContent = (avg * 100).toFixed(1) + "%";
+
+      const bandRanges = ["0–20%", "20–40%", "40–60%", "60–80%", "80–100%"];
+      const bandCounts = [0, 0, 0, 0, 0];
+      preds.forEach(p => {
+        const s = (p.risk_score || 0) * 100;
+        const i = Math.min(4, Math.floor(s / 20));
+        bandCounts[i]++;
+      });
+      document.getElementById("bands").innerHTML = bandRanges.map((r, i) =>
+        `<div class="band"><span class="val">${bandCounts[i]}</span><div class="range">${r}</div></div>`
+      ).join("");
+
+      const binEdges = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+      const hist = binEdges.slice(0, -1).map((_, i) =>
+        preds.filter(p => {
+          const s = (p.risk_score || 0) * 100;
+          return s >= binEdges[i] && s < binEdges[i + 1];
+        }).length
+      );
+      const top15 = [...preds].sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0)).slice(0, 15);
+
+      if (chartDist) chartDist.destroy();
+      if (chartTop) chartTop.destroy();
+      const gridColor = "#30363d";
+      const textColor = "#8b949e";
+      const accentColor = "#58a6ff";
+      const dangerColor = "#f85149";
+      const warningColor = "#d29922";
+      chartDist = new Chart(document.getElementById("chartDist"), {
+        type: "bar",
+        data: {
+          labels: binEdges.slice(0, -1).map((v, i) => v + "–" + binEdges[i + 1] + "%"),
+          datasets: [{ label: "Countries", data: hist, backgroundColor: accentColor, borderRadius: 4 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: gridColor }, ticks: { color: textColor, maxRotation: 45 } },
+            y: { grid: { color: gridColor }, ticks: { color: textColor } }
+          }
+        }
+      });
+      chartTop = new Chart(document.getElementById("chartTop"), {
+        type: "bar",
+        data: {
+          labels: top15.map(p => p.country),
+          datasets: [{
+            label: "Risk %",
+            data: top15.map(p => Math.round((p.risk_score || 0) * 1000) / 10),
+            backgroundColor: top15.map(p => (p.risk_score || 0) >= 0.6 ? dangerColor : warningColor),
+            borderRadius: 4
+          }]
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { max: 100, grid: { color: gridColor }, ticks: { color: textColor } },
+            y: { grid: { display: false }, ticks: { color: textColor } }
+          }
+        }
+      });
+    }
+
     document.getElementById("search").addEventListener("input", () => render(filterSort()));
     document.getElementById("highOnly").addEventListener("change", () => render(filterSort()));
     document.getElementById("sort").addEventListener("change", () => render(filterSort()));
@@ -270,6 +393,7 @@
         document.getElementById("loading").style.display = "none";
         document.querySelector(".filter").style.display = res.target_type === "binary" ? "flex" : "none";
         updateSortOptions();
+        updateSummaryAndCharts();
         render(filterSort());
       })
       .catch(err => {
