@@ -103,9 +103,9 @@ def main():
             "seq_len": args.lstm_seq_len,
             "use_extra_data": use_extra_data,
             "data_path": data_path,
-            "views_path": str(DATA_PATHS.get("views_fatalities", "")) if args.use_extra_data else None,
-            "alliance_path": str(DATA_PATHS.get("alliance_member_yearly", "")) if args.use_extra_data else None,
-            "dyadic_mid_path": str(DATA_PATHS.get("dyadic_mid", "")) if args.use_extra_data else None,
+            "views_path": str(DATA_PATHS.get("views_fatalities", "")) if use_extra_data else None,
+            "alliance_path": str(DATA_PATHS.get("alliance_member_yearly", "")) if use_extra_data else None,
+            "dyadic_mid_path": str(DATA_PATHS.get("dyadic_mid", "")) if use_extra_data else None,
         }
         joblib.dump(artifacts, out_dir / "artifacts.joblib")
     else:
@@ -164,9 +164,9 @@ def main():
             "lag_months": lag_months,
             "use_extra_data": use_extra_data,
             "data_path": data_path,
-            "views_path": str(DATA_PATHS.get("views_fatalities", "")) if args.use_extra_data else None,
-            "alliance_path": str(DATA_PATHS.get("alliance_member_yearly", "")) if args.use_extra_data else None,
-            "dyadic_mid_path": str(DATA_PATHS.get("dyadic_mid", "")) if args.use_extra_data else None,
+            "views_path": str(DATA_PATHS.get("views_fatalities", "")) if use_extra_data else None,
+            "alliance_path": str(DATA_PATHS.get("alliance_member_yearly", "")) if use_extra_data else None,
+            "dyadic_mid_path": str(DATA_PATHS.get("dyadic_mid", "")) if use_extra_data else None,
         }
         joblib.dump(artifacts, out_dir / "artifacts.joblib")
 
