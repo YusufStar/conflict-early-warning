@@ -22,8 +22,7 @@ from src.models.lstm import build_sequences, train_lstm, predict_lstm, SEQ_LEN_D
 def parse_args():
     p = argparse.ArgumentParser(description="Train conflict escalation predictor")
     p.add_argument("--data_path", type=str, default=None, help="Political Violence Excel; default from config")
-    p.add_argument("--use_extra_data", action="store_true", default=True, help="Merge VIEWS, alliance, MID (default: True)")
-    p.add_argument("--no_extra_data", action="store_true", help="Disable VIEWS, alliance, MID")
+    p.add_argument("--no_extra_data", action="store_true", help="Disable VIEWS, alliance, MID (default: use extra data)")
     p.add_argument("--target", type=str, choices=["binary", "regression"], default="binary")
     p.add_argument("--model", type=str, choices=["lr", "xgb", "lgbm", "lstm"], default="xgb")
     p.add_argument("--test_months", type=int, default=12)
@@ -43,7 +42,7 @@ def main():
 
     lag_months = [int(x) for x in args.lag_months.split(",")]
     data_path = args.data_path or str(DATA_PATHS["political_violence"])
-    use_extra_data = args.use_extra_data and not args.no_extra_data
+    use_extra_data = not args.no_extra_data
 
     if use_extra_data:
         panel = build_enriched_panel(
