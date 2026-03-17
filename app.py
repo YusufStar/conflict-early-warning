@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Single-page web UI for conflict early warning predictions."""
 import os
+import joblib
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template
@@ -72,7 +73,14 @@ def api_predictions():
         else:
             row["predicted_events"] = _float(r.get("predicted_events", 0))
         out.append(row)
-    return jsonify({"target_type": target_type, "predictions": out})
+    payload = {"target_type": target_type, "predictions": out}
+    try:
+        art = joblib.load(ARTIFACTS_PATH)
+        if art.get("target_type") == "binary" and "threshold" in art:
+            payload["high_risk_threshold"] = _float(art["threshold"])
+    except Exception:
+        pass
+    return jsonify(payload)
 
 
 @app.route("/api/country/<path:name>")

@@ -8,6 +8,7 @@ Country-level **next month risk score** or **conflict escalation probability**, 
 
 - **Base:** `data/Political Violence Events by Country Mar 2026.xlsx` (ACLED: COUNTRY, MONTH, YEAR, EVENTS).
 - **Extra (default on):** `data/VIEWS Fatalities Data 2026.csv`, `data/version4.1_csv/alliance_v4.1_by_member_yearly.csv`, `data/dyadic_mid_4.03.csv`. Paths in `src/config.py`.
+- **High-risk definition (binary):** Default 90th percentile of event counts (stricter). Use `--high_risk_percentile 75` for looser, or `--high_risk_threshold 5` for a fixed "events > 5" threshold.
 - To train without extra data: `python train.py --no_extra_data --model lr --target binary`.
 - See `docs/DATA_PLAN.md` for integration details.
 
@@ -43,7 +44,7 @@ python train.py --model lstm --target binary --lstm_epochs 50
 python train.py --no_extra_data --model lr --target binary
 ```
 
-Options: `--data_path`, `--no_extra_data`, `--test_months`, `--val_months`, `--high_risk_percentile`, `--lag_months`, `--out_dir`, `--lstm_seq_len`, `--lstm_epochs`.
+Options: `--data_path`, `--no_extra_data`, `--test_months`, `--val_months`, `--high_risk_percentile` (default 90), `--high_risk_threshold` (fixed event count), `--lag_months`, `--out_dir`, `--lstm_seq_len`, `--lstm_epochs`.
 
 **Predict**
 

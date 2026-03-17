@@ -27,7 +27,8 @@ def parse_args():
     p.add_argument("--model", type=str, choices=["lr", "xgb", "lgbm", "lstm"], default="xgb")
     p.add_argument("--test_months", type=int, default=12)
     p.add_argument("--val_months", type=int, default=12)
-    p.add_argument("--high_risk_percentile", type=float, default=75.0)
+    p.add_argument("--high_risk_percentile", type=float, default=90.0, help="Percentile for binary threshold (default 90 = stricter)")
+    p.add_argument("--high_risk_threshold", type=float, default=None, help="Fixed event count threshold; if set, overrides percentile")
     p.add_argument("--lag_months", type=str, default="1,2,3,6,12", help="Comma-separated lags")
     p.add_argument("--out_dir", type=str, default="outputs")
     p.add_argument("--lstm_seq_len", type=int, default=SEQ_LEN_DEFAULT)
@@ -57,6 +58,7 @@ def main():
         panel,
         target_type=args.target,
         high_risk_percentile=args.high_risk_percentile,
+        high_risk_threshold=args.high_risk_threshold,
     )
     target_col = "target_binary" if args.target == "binary" else "target_events"
     if target_col not in panel_with_target.columns:

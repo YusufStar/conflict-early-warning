@@ -200,7 +200,7 @@
       </div>
     </div>
     <div class="forecast-note" id="forecastNote" style="display:none">
-      <strong>Forecast.</strong> Risk scores below are for the <strong>next calendar month</strong> based on the latest event data. The model uses historical event counts, trends, and seasonality. High-risk countries are those above the 75th percentile of escalation probability.
+      <strong>Forecast.</strong> Risk scores are for the <strong>next calendar month</strong> (at least one political violence event). <span id="thresholdNote">High risk = probability that events exceed the model threshold.</span>
     </div>
     <div class="summary" id="summary" style="display:none">
       <div class="card"><span class="value" id="totalCountries">—</span><div class="label">Countries</div></div>
@@ -473,6 +473,9 @@
         data = res;
         document.getElementById("loading").style.display = "none";
         document.querySelector(".filter").style.display = res.target_type === "binary" ? "flex" : "none";
+        const th = res.high_risk_threshold;
+        const note = document.getElementById("thresholdNote");
+        if (note && th != null) note.textContent = "High risk = next month event count > " + th + " (or top percentile).";
         updateSortOptions();
         updateSummaryAndCharts();
         render(filterSort());
