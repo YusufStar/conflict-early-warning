@@ -4,6 +4,19 @@
 
 Country-level **next month risk score** or **conflict escalation probability**, trained on historical events plus VIEWS fatalities, COW alliances, and MIDs (default).
 
+---
+
+## Problem → Data → Model → Result
+
+| Step | Description |
+|------|-------------|
+| **Problem** | Predict which countries are at higher risk of conflict escalation in the next month (binary high-risk or event count). |
+| **Data** | **Base:** ACLED political violence events by country/month. **Extra (default):** VIEWS fatalities, COW alliance memberships, COW dyadic MIDs. Panel: country–month with lags, trend, seasonality, spillover. |
+| **Model** | Logistic Regression, XGBoost, LightGBM (Tweedie for count), or LSTM. Features: event lags, VIEWS, alliance count, MID count, country dummies. Target: next-period high-risk (percentile or fixed threshold) or event count. |
+| **Result** | `outputs/predictions.csv` (risk score / predicted events per country), `outputs/metrics.json` (AUC, F1, MAE). Web UI at http://127.0.0.1:5050: table, filters, country detail (alliances, MID history). |
+
+---
+
 ## Data (default: all used)
 
 - **Base:** `data/Political Violence Events by Country Mar 2026.xlsx` (ACLED: COUNTRY, MONTH, YEAR, EVENTS).
@@ -35,7 +48,7 @@ On macOS, XGBoost and LightGBM may require: `brew install libomp`.
 **Train** (uses VIEWS + alliance + MID by default)
 
 ```bash
-python train.py --model lr --target binary
+python train.py --model lr --target binary #my choice
 python train.py --model xgb --target binary
 python train.py --model lgbm --target binary
 python train.py --model lstm --target binary --lstm_epochs 50
