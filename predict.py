@@ -8,8 +8,21 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.data import load_and_build_panel
-from src.features import build_features, get_feature_columns
+from src.data import load_and_build_panel, build_enriched_panel
+from src.features import build_features
+
+
+def _get_panel(artifacts: dict, data_path: str):
+    """Build panel (base or enriched) from artifacts and data_path."""
+    path = artifacts.get("data_path") or data_path
+    if artifacts.get("use_extra_data"):
+        return build_enriched_panel(
+            path,
+            views_path=artifacts.get("views_path"),
+            alliance_path=artifacts.get("alliance_path"),
+            dyadic_mid_path=artifacts.get("dyadic_mid_path"),
+        )
+    return load_and_build_panel(path)
 
 
 def get_predictions(
@@ -24,7 +37,7 @@ def get_predictions(
     if artifacts.get("model_type") == "lstm":
         from src.models.lstm import get_latest_sequences, predict_lstm
         seq_len = artifacts.get("seq_len", 12)
-        panel = load_and_build_panel(data_path)
+        panel = _get_panel(artifacts, data_path)
         X, countries = get_latest_sequences(panel, seq_len)
         if not countries:
             raise RuntimeError("No country sequences for prediction")
@@ -43,7 +56,7 @@ def get_predictions(
         country_encoder = artifacts["country_encoder"]
         feature_columns = artifacts["feature_columns"]
         lag_months = artifacts.get("lag_months", [1, 2, 3, 6, 12])
-        panel = load_and_build_panel(data_path)
+        panel = _get_panel(artifacts, data_path)
         df, _ = build_features(
             panel,
             lag_months=lag_months,
@@ -69,8 +82,9 @@ def get_predictions(
 
 
 def parse_args():
+    from src.config import PATHS
     p = argparse.ArgumentParser(description="Predict conflict risk / event count")
-    p.add_argument("--data_path", type=str, default="Political Violence Events by Country Mar 2026.xlsx")
+    p.add_argument("--data_path", type=str, default=str(PATHS.get("political_violence", "data/Political Violence Events by Country Mar 2026.xlsx")))
     p.add_argument("--artifacts_path", type=str, default="outputs/artifacts.joblib")
     p.add_argument("--out_path", type=str, default="outputs/predictions.csv")
     return p.parse_args()

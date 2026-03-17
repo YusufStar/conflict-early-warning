@@ -105,8 +105,9 @@ def build_features(
 
     lag_cols = [c for c in df.columns if c.startswith("events_lag")]
     df = df.dropna(subset=lag_cols).reset_index(drop=True)
-    # Fill remaining NaN (e.g. rolling std) with 0 for model compatibility
-    feat_cols = [c for c in df.columns if c not in {"country", "year", "month", "period_index", "events", "target_binary", "target_events", "target_events_next"}]
+    # Fill remaining NaN (e.g. rolling std, views, alliance, mid) with 0
+    exclude = {"country", "year", "month", "period_index", "events", "target_binary", "target_events", "target_events_next"}
+    feat_cols = [c for c in df.columns if c not in exclude]
     df[feat_cols] = df[feat_cols].fillna(0)
     return df, enc
 

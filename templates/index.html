@@ -164,6 +164,24 @@
     .band .range { color: var(--muted); font-size: 0.75rem; }
     .forecast-note { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
     .forecast-note strong { color: var(--text); }
+    .footer-sources { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.8rem; }
+    .footer-sources strong { color: var(--text); }
+    .country-link { color: var(--accent); text-decoration: none; font-weight: 500; }
+    .country-link:hover { text-decoration: underline; }
+    .detail-panel { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; }
+    .detail-panel.visible { display: block; }
+    .detail-panel h2 { margin: 0 0 1rem 0; font-size: 1.25rem; }
+    .detail-back { color: var(--muted); cursor: pointer; font-size: 0.9rem; margin-bottom: 1rem; }
+    .detail-back:hover { color: var(--accent); }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .detail-card { padding: 0.75rem; background: var(--bg); border-radius: 6px; }
+    .detail-card .label { color: var(--muted); font-size: 0.8rem; }
+    .detail-card .val { font-size: 1.1rem; font-weight: 600; }
+    .detail-section { margin-top: 1rem; }
+    .detail-section h3 { font-size: 0.95rem; color: var(--muted); margin: 0 0 0.5rem 0; }
+    .detail-table { width: 100%; font-size: 0.85rem; border-collapse: collapse; }
+    .detail-table th, .detail-table td { padding: 0.4rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .detail-loading { color: var(--muted); }
   </style>
 </head>
 <body>
@@ -172,6 +190,15 @@
       <h1>Conflict Early Warning</h1>
       <p class="tagline">AI that predicts where conflict will escalate next</p>
     </header>
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-back" id="detailBack">← Back to list</div>
+      <h2 id="detailCountryName"></h2>
+      <div class="detail-grid" id="detailGrid"></div>
+      <div class="detail-section">
+        <h3>Conflict history (MIDs – militarized interstate disputes)</h3>
+        <div id="detailMidWrap"><p class="detail-loading">Loading…</p></div>
+      </div>
+    </div>
     <div class="forecast-note" id="forecastNote" style="display:none">
       <strong>Forecast.</strong> Risk scores below are for the <strong>next calendar month</strong> based on the latest event data. The model uses historical event counts, trends, and seasonality. High-risk countries are those above the 75th percentile of escalation probability.
     </div>
@@ -228,6 +255,9 @@
         <tbody id="tbodyReg"></tbody>
       </table>
     </div>
+    <footer class="footer-sources">
+      <strong>Data:</strong> ACLED political violence (country–month); optional: VIEWS fatalities, COW alliances & MIDs. Model: LR / XGBoost / LightGBM / LSTM.
+    </footer>
   </div>
   <script>
     let data = { target_type: "binary", predictions: [] };
@@ -272,14 +302,14 @@
           const score = (p.risk_score != null ? (p.risk_score * 100).toFixed(1) : "—") + "%";
           const cls = riskClass(p.risk_score || 0);
           const badge = p.high_risk ? '<span class="badge high">High risk</span>' : '<span class="badge low">Low risk</span>';
-          return `<tr><td class="country">${escapeHtml(p.country)}</td><td class="risk ${cls}">${score}</td><td>${badge}</td></tr>`;
+          return `<tr><td class="country"><a href="#" class="country-link" data-country="${escapeHtml(p.country)}">${escapeHtml(p.country)}</a></td><td class="risk ${cls}">${score}</td><td>${badge}</td></tr>`;
         }).join("");
       } else {
         table.style.display = "none";
         tableReg.style.display = "table";
         tbodyReg.innerHTML = list.map(p => {
           const ev = p.predicted_events != null ? Number(p.predicted_events).toFixed(1) : "—";
-          return `<tr><td class="country">${escapeHtml(p.country)}</td><td class="risk">${ev}</td></tr>`;
+          return `<tr><td class="country"><a href="#" class="country-link" data-country="${escapeHtml(p.country)}">${escapeHtml(p.country)}</a></td><td class="risk">${ev}</td></tr>`;
         }).join("");
       }
       document.getElementById("count").textContent = `${list.length} of ${data.predictions.length} countries`;
@@ -386,6 +416,57 @@
     document.getElementById("highOnly").addEventListener("change", () => render(filterSort()));
     document.getElementById("sort").addEventListener("change", () => render(filterSort()));
 
+    function showDetail(countryName) {
+      const panel = document.getElementById("detailPanel");
+      const nameEl = document.getElementById("detailCountryName");
+      const gridEl = document.getElementById("detailGrid");
+      const midWrap = document.getElementById("detailMidWrap");
+      panel.classList.add("visible");
+      nameEl.textContent = countryName;
+      gridEl.innerHTML = "";
+      midWrap.innerHTML = "<p class=\"detail-loading\">Loading…</p>";
+      history.replaceState(null, "", "#country=" + encodeURIComponent(countryName));
+      fetch("/api/country/" + encodeURIComponent(countryName))
+        .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
+        .then(d => {
+          gridEl.innerHTML = "";
+          if (d.risk_score != null) {
+            gridEl.innerHTML += `<div class="detail-card"><div class="label">Risk score</div><div class="val">${(d.risk_score * 100).toFixed(1)}%</div></div>`;
+            gridEl.innerHTML += `<div class="detail-card"><div class="label">Status</div><div class="val">${d.high_risk ? "High risk" : "Low risk"}</div></div>`;
+          }
+          if (d.predicted_events != null) gridEl.innerHTML += `<div class="detail-card"><div class="label">Predicted events</div><div class="val">${Number(d.predicted_events).toFixed(1)}</div></div>`;
+          gridEl.innerHTML += `<div class="detail-card"><div class="label">Alliances (latest)</div><div class="val">${d.alliance_count != null ? d.alliance_count : "—"}</div></div>`;
+          const mids = d.mid_history || [];
+          if (mids.length === 0) midWrap.innerHTML = "<p class=\"detail-loading\">No MID records in dataset.</p>";
+          else {
+            midWrap.innerHTML = "<table class=\"detail-table\"><thead><tr><th>Year</th><th>Opponent</th></tr></thead><tbody>" +
+              mids.slice(0, 100).map(m => "<tr><td>" + escapeHtml(String(m.year)) + "</td><td>" + escapeHtml(m.opponent) + "</td></tr>").join("") +
+              "</tbody></table>" + (mids.length > 100 ? "<p class=\"detail-loading\">Showing first 100 of " + mids.length + "</p>" : "");
+          }
+        })
+        .catch(() => { midWrap.innerHTML = "<p class=\"detail-loading\">Could not load details.</p>"; });
+    }
+
+    function closeDetail() {
+      document.getElementById("detailPanel").classList.remove("visible");
+      history.replaceState(null, "", "#");
+    }
+
+    document.getElementById("detailBack").addEventListener("click", closeDetail);
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest(".country-link");
+      if (a) { e.preventDefault(); showDetail(a.getAttribute("data-country")); }
+    });
+    function maybeOpenDetailFromHash() {
+      if (location.hash.startsWith("#country=")) {
+        const name = decodeURIComponent(location.hash.slice(9).replace(/\+/g, " "));
+        if (name) showDetail(name);
+      } else {
+        document.getElementById("detailPanel").classList.remove("visible");
+      }
+    }
+    window.addEventListener("hashchange", maybeOpenDetailFromHash);
+
     fetch("/api/predictions")
       .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
       .then(res => {
@@ -395,6 +476,7 @@
         updateSortOptions();
         updateSummaryAndCharts();
         render(filterSort());
+        maybeOpenDetailFromHash();
       })
       .catch(err => {
         document.getElementById("loading").style.display = "none";

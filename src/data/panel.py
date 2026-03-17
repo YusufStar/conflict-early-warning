@@ -1,6 +1,4 @@
-"""
-Load Excel, parse month/year, build country-month panel.
-"""
+"""Load Excel, parse month/year, build country-month panel."""
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -15,10 +13,9 @@ def load_excel(path: str | Path) -> pd.DataFrame:
     """Load Excel; expect columns COUNTRY, MONTH, YEAR, EVENTS."""
     path = Path(path)
     df = pd.read_excel(path)
-    cols = [c.upper().strip() for c in df.columns]
     rename = {}
     for c in df.columns:
-        u = c.upper().strip()
+        u = str(c).upper().strip()
         if u in ("COUNTRY", "MONTH", "YEAR", "EVENTS"):
             rename[c] = u
     df = df.rename(columns=rename)
@@ -39,10 +36,7 @@ def parse_month(month_val) -> int:
 
 
 def build_panel(df: pd.DataFrame, fill_missing: bool = True) -> pd.DataFrame:
-    """
-    Build country-month panel: country, year, month, period_index, events.
-    Sort by country, period_index. Optionally fill missing (country, period) with 0 events.
-    """
+    """Build country-month panel: country, year, month, period_index, events."""
     df = df.copy()
     df["month_num"] = df["MONTH"].map(parse_month)
     df = df.dropna(subset=["month_num"])

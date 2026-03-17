@@ -36,3 +36,15 @@ def get_xgb_model(target_type: str, **kwargs):
             **default_kw,
         )
     raise ValueError(f"target_type must be 'binary' or 'regression', got {target_type}")
+
+
+def get_lgbm_model(target_type: str, **kwargs):
+    """LightGBM for binary or regression (Tweedie for count)."""
+    import lightgbm as lgb
+    default_kw = dict(max_depth=6, n_estimators=100, random_state=42, verbosity=-1, n_jobs=1)
+    default_kw.update(kwargs)
+    if target_type == "binary":
+        return lgb.LGBMClassifier(objective="binary", **default_kw)
+    if target_type == "regression":
+        return lgb.LGBMRegressor(objective="tweedie", tweedie_variance_power=1.5, **default_kw)
+    raise ValueError(f"target_type must be 'binary' or 'regression', got {target_type}")

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Train conflict early warning model: LR or XGBoost, binary or regression.
+Train conflict early warning model: LR, XGBoost, LGBM, or LSTM.
+Uses enriched panel (VIEWS, alliance, MID) when --use_extra_data.
 """
 import argparse
 import json
@@ -9,19 +10,22 @@ from pathlib import Path
 
 import numpy as np
 
-from src.data import load_and_build_panel
+from src.data import load_and_build_panel, build_enriched_panel
+from src.config import PATHS as DATA_PATHS
 from src.features import build_features, time_based_split, get_feature_columns
 from src.targets import add_targets
 from src.evaluate import evaluate_binary, evaluate_regression
-from src.models import get_lr_pipeline, get_xgb_model
+from src.models import get_lr_pipeline, get_xgb_model, get_lgbm_model
 from src.models.lstm import build_sequences, train_lstm, predict_lstm, SEQ_LEN_DEFAULT
 
 
 def parse_args():
     p = argparse.ArgumentParser(description="Train conflict escalation predictor")
-    p.add_argument("--data_path", type=str, default="Political Violence Events by Country Mar 2026.xlsx")
+    p.add_argument("--data_path", type=str, default=None, help="Political Violence Excel; default from config")
+    p.add_argument("--use_extra_data", action="store_true", default=True, help="Merge VIEWS, alliance, MID (default: True)")
+    p.add_argument("--no_extra_data", action="store_true", help="Disable VIEWS, alliance, MID")
     p.add_argument("--target", type=str, choices=["binary", "regression"], default="binary")
-    p.add_argument("--model", type=str, choices=["lr", "xgb", "lstm"], default="xgb")
+    p.add_argument("--model", type=str, choices=["lr", "xgb", "lgbm", "lstm"], default="xgb")
     p.add_argument("--test_months", type=int, default=12)
     p.add_argument("--val_months", type=int, default=12)
     p.add_argument("--high_risk_percentile", type=float, default=75.0)
@@ -38,8 +42,18 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     lag_months = [int(x) for x in args.lag_months.split(",")]
+    data_path = args.data_path or str(DATA_PATHS["political_violence"])
+    use_extra_data = args.use_extra_data and not args.no_extra_data
 
-    panel = load_and_build_panel(args.data_path)
+    if use_extra_data:
+        panel = build_enriched_panel(
+            data_path,
+            views_path=DATA_PATHS.get("views_fatalities"),
+            alliance_path=DATA_PATHS.get("alliance_member_yearly"),
+            dyadic_mid_path=DATA_PATHS.get("dyadic_mid"),
+        )
+    else:
+        panel = load_and_build_panel(data_path)
     panel_with_target, threshold = add_targets(
         panel,
         target_type=args.target,
@@ -88,6 +102,11 @@ def main():
             "threshold": threshold,
             "lag_months": [args.lstm_seq_len],
             "seq_len": args.lstm_seq_len,
+            "use_extra_data": use_extra_data,
+            "data_path": data_path,
+            "views_path": str(DATA_PATHS.get("views_fatalities", "")) if args.use_extra_data else None,
+            "alliance_path": str(DATA_PATHS.get("alliance_member_yearly", "")) if args.use_extra_data else None,
+            "dyadic_mid_path": str(DATA_PATHS.get("dyadic_mid", "")) if args.use_extra_data else None,
         }
         joblib.dump(artifacts, out_dir / "artifacts.joblib")
     else:
@@ -122,6 +141,13 @@ def main():
             y_val_prob = model.predict_proba(X_val)[:, 1] if args.target == "binary" else None
             y_test_pred = model.predict(X_test)
             y_test_prob = model.predict_proba(X_test)[:, 1] if args.target == "binary" else None
+        elif args.model == "lgbm":
+            model = get_lgbm_model(args.target)
+            model.fit(X_train, y_train)
+            y_val_pred = model.predict(X_val)
+            y_val_prob = model.predict_proba(X_val)[:, 1] if args.target == "binary" else None
+            y_test_pred = model.predict(X_test)
+            y_test_prob = model.predict_proba(X_test)[:, 1] if args.target == "binary" else None
         else:
             model = get_xgb_model(args.target)
             model.fit(X_train, y_train)
@@ -129,12 +155,6 @@ def main():
             y_val_prob = model.predict_proba(X_val)[:, 1] if args.target == "binary" else None
             y_test_pred = model.predict(X_test)
             y_test_prob = model.predict_proba(X_test)[:, 1] if args.target == "binary" else None
-        if args.target == "binary":
-            val_metrics = evaluate_binary(y_val, y_val_pred, y_val_prob)
-            test_metrics = evaluate_binary(y_test, y_test_pred, y_test_prob)
-        else:
-            val_metrics = evaluate_regression(y_val, y_val_pred)
-            test_metrics = evaluate_regression(y_test, y_test_pred)
         artifacts = {
             "model": model,
             "model_type": "sklearn",
@@ -143,6 +163,11 @@ def main():
             "target_type": args.target,
             "threshold": threshold,
             "lag_months": lag_months,
+            "use_extra_data": use_extra_data,
+            "data_path": data_path,
+            "views_path": str(DATA_PATHS.get("views_fatalities", "")) if args.use_extra_data else None,
+            "alliance_path": str(DATA_PATHS.get("alliance_member_yearly", "")) if args.use_extra_data else None,
+            "dyadic_mid_path": str(DATA_PATHS.get("dyadic_mid", "")) if args.use_extra_data else None,
         }
         joblib.dump(artifacts, out_dir / "artifacts.joblib")
 
